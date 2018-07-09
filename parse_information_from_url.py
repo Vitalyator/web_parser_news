@@ -1,7 +1,11 @@
 import argparse
 import os
 import requests
+import textwrap
 from bs4 import BeautifulSoup
+
+MAX_LENGTH_STRING = 80
+
 
 class ProcessURL:
     def __init__(self, url, config, output_path):
@@ -13,13 +17,41 @@ class ProcessURL:
         self.url = url
         self.output_path = output_path
         self.config = config
-        self.processed_text = self.modificating_html(response.text, config)
+        self.processed_text = self._modificating_html(response.text, config)
 
-    def modificating_html(self, html, config):
+    def _modificating_html(self, html, config):
+        text = []
         soup = BeautifulSoup(html, 'html.parser')
-        title = soup.title.string
-        print(title)
-        return html
+        # title = soup.title.string
+        parent_with_h1 = soup.find('h1').parent.parent
+        print(parent_with_h1)
+        for tags in parent_with_h1:
+            print(parent_with_h1.contents)
+            if tags.name != 'div':
+                continue
+            for content in tags.contents:
+                if content.name not in ['h1', 'h2', 'h3', 'h4', 'h5', 'p']:
+                    continue
+                extracted_text = content.text
+                if len(extracted_text) > MAX_LENGTH_STRING:
+                    extracted_text = textwrap.fill(extracted_text, MAX_LENGTH_STRING)
+                text.append(extracted_text)
+        # print(text) принт отладки
+        return text
+
+    def save_text(self):
+        #https://lenta.ru/news/2018/07/06/naftogaz_nadoel/
+        url = self.url
+        if url[-1] == '/':
+            url = url[:-1]
+        generating_directories = url.split('/')[2:]
+        complete_output_path = os.path.join(self.output_path, *generating_directories[:-1])
+        os.makedirs(complete_output_path, exist_ok=True)
+        path_to_file = os.path.join(complete_output_path, generating_directories[-1] + '.txt')
+        with open(path_to_file, 'w') as stream:
+            for string in self.processed_text:
+                stream.write(string)
+                stream.write('\n\n')
 
 
 def argument_parse():
@@ -37,6 +69,7 @@ def argument_parse():
 def main():
     args = argument_parse()
     filtered_information = ProcessURL(args.url, args.config, args.output_path)
+    filtered_information.save_text()
 
 
 if __name__ == '__main__':
